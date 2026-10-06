@@ -1,8 +1,8 @@
 # FlagWise — low-fidelity wireframe prototype
 
-A clickable wireframe of a fraud analyst dashboard, built for a university HCI
-assignment. It is deliberately unfinished-looking: grey outlines, square
-corners, system fonts and outlined boxes in place of real imagery and charts.
+A clickable wireframe of a fraud analyst dashboard. It is deliberately
+unfinished-looking: grey outlines, square corners, system fonts and outlined
+boxes in place of real imagery and charts.
 
 Note that the interface itself never announces that it is a wireframe — there
 is no "prototype" banner, no logo placeholder and no disclaimer on screen, so
@@ -177,15 +177,15 @@ changes them, and Undo puts them back.
 
 ## Assumptions and decisions
 
-1. **Medium scores sit in 40–69.** The brief described 3 medium records as
-   "40 to 79" but set the MEDIUM band at 40–69. All medium records were placed
-   inside 40–69 so the data and the band rules agree.
+1. **Medium scores sit in 40–69.** Three medium records were specified as
+   "40 to 79" while the MEDIUM band was set at 40–69. All medium records were
+   placed inside 40–69 so the data and the band rules agree.
 2. **Recipient balances are `0.00 → 0.00` for `CASH_OUT` *and* `PAYMENT`.**
    A cash machine withdrawal pays a machine operator and a payment pays a shop,
    so neither has a recipient account to record. Only `TRANSFER` carries real
    recipient balances. The case screen says so in a note under the balances,
    otherwise two different rows would silently mean two different things.
-3. **The counter is live, not the literal example.** The brief showed
+3. **The counter is live, not the literal example.** The original example was
    "12 alerts, 8 new"; the shipped data has 10 records, so it reads
    "10 alerts, 4 new, 2 in review, 4 resolved." and updates as you act.
 4. **`status` and `outcome` are separate fields.** `status` keeps exactly the
@@ -211,11 +211,11 @@ changes them, and Undo puts them back.
 12. **The queue row ID is a real link**, so a case can be opened in a new tab.
     Clicking anywhere else on the row navigates the same way.
 13. **Currency is shown as `$`.** PaySim is denominated in rupiah, but `$` is
-    easier to read for the assignment audience. Swap the `Intl.NumberFormat`
-    call in `app.js` if you want `Rp`.
-14. **Keyboard support added beyond the brief**: queue rows open with
-    `Enter`/`Space`, `Escape` cancels the dialog, and focus is kept on the
-    heuristic-notes toggle across re-renders.
+    easier to read at a glance. Swap the `Intl.NumberFormat` call in `app.js`
+    if you want `Rp`.
+14. **Keyboard support was added on top of the original requirements**: queue
+    rows open with `Enter`/`Space`, `Escape` cancels the dialog, and focus is
+    kept on the heuristic-notes toggle across re-renders.
 15. **The UI deliberately does not describe itself as a prototype.** The
     banner, the `[ logo ]` box, the `wireframe` badge, the browser-tab suffix
     and six explanatory sentences about "this prototype" were all removed so
