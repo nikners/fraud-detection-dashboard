@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlagWise</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- Every screen is rendered into here by app.js -->
+  <div id="app"></div>
+
+  <!-- Toasts live OUTSIDE #app so that re-rendering a screen never destroys a
+       message the analyst still needs to read, or the Undo button in it. -->
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
