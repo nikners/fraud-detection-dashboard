@@ -263,8 +263,11 @@ a { color: var(--ink); }
 .btn-solid  { background: var(--ink); color: var(--paper); }
 .btn-solid:hover { background: var(--ink-2); border-color: var(--ink-2); }
 .btn-sm     { padding: 3px 8px; font-size: 12px; }
-.btn-block  { width: 100%; text-align: center; }
-.btn + .btn { margin-left: 6px; }
+/* Full-width buttons stack on their own line. They must be excluded from the
+   inline sibling gap below, or the 6px left margin pushes them out past the
+   panel padding as well as down the line. */
+.btn-block  { display: block; width: 100%; text-align: center; }
+.btn + .btn:not(.btn-block) { margin-left: 6px; }
 .stack > .btn, .stack .btn + .btn { margin-left: 0; }
 
 /* ----------------------------------------------------------------- forms */
@@ -588,11 +591,14 @@ tr.clickable { cursor: pointer; }
 .modal-actions .btn + .btn { margin-left: 0; }
 
 /* ---------------------------------------------------------------- toasts */
+/* Bottom left, not bottom right: the queue's Status column is the rightmost
+   one, and the case screen's action buttons sit in the right-hand column.
+   Anchoring here keeps toasts clear of both. */
 .toasts {
   position: fixed;
-  right: 16px;
+  left: 16px;
   bottom: 16px;
-  width: 340px;
+  width: 360px;
   max-width: calc(100% - 32px);
   display: flex;
   flex-direction: column;
