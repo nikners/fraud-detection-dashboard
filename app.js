@@ -274,7 +274,7 @@
             '<div class="field" data-field="username">' +
               '<label for="username">Username</label>' +
               '<input type="text" id="username" name="username" autocomplete="username" autofocus>' +
-              '<span class="hint" id="usernameHint">For example: n.muhamadazeem</span>' +
+              '<span class="hint" id="usernameHint">For example: analyst1</span>' +
               '<p class="field-error" id="err-username" role="alert"></p>' +
             '</div>' +
 
@@ -305,7 +305,7 @@
     /* Inline validation. Nothing is submitted anywhere; the "login" is just
        remembering who you said you are. */
     let firstBad = null;
-    [['username', name, 'Enter your username, for example n.muhamadazeem.'],
+    [['username', name, 'Enter your username, for example analyst1.'],
      ['password', pass, 'Enter your password.']].forEach(function (row) {
       const key = row[0], value = row[1], message = row[2];
       const field = form.querySelector('[data-field="' + key + '"]');
@@ -329,7 +329,8 @@
 
     state.session = { name: name, role: role };
     navigate('#/queue');
-    notify('Signed in as ' + name + ' (' + role + ').');
+    /* No toast here. The top bar already shows who is signed in and what role
+       they have, so repeating it on screen would be noise. */
   }
 
   /* ----------------------------------------------------------- 5b. queue */
@@ -542,6 +543,19 @@
             '</div>' +
           '</section>' +
 
+          /* Sits directly under the Risk panel so the reasons are readable
+             without scrolling at 1280x800. It used to be a full-width panel
+             below both columns, which pushed it off the screen. */
+          '<section class="panel">' +
+            '<h2>Why was this flagged?' + hTag('H6') + '</h2>' +
+            '<div class="panel-body">' +
+              '<p class="small muted">Written out in plain words, so you do not need to know how the checks work.</p>' +
+              '<ol class="reasons">' +
+                a.reasons.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') +
+              '</ol>' +
+            '</div>' +
+          '</section>' +
+
           '<section class="panel">' +
             '<h2>Transaction details' + hTag('H6') + '</h2>' +
             '<div class="panel-body">' +
@@ -594,17 +608,7 @@
             '</div>' +
           '</section>' +
         '</div>' +
-      '</div>' +
-
-      '<section class="panel">' +
-        '<h2>Why was this flagged?' + hTag('H6') + '</h2>' +
-        '<div class="panel-body">' +
-          '<p class="small muted">Written out in plain words, so you do not need to know how the checks work.</p>' +
-          '<ol class="reasons">' +
-            a.reasons.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') +
-          '</ol>' +
-        '</div>' +
-      '</section>';
+      '</div>';
   }
 
   /* --------------------------------------------------------- 5d. reports */
@@ -766,16 +770,24 @@
     render();
     pushToast(msg, {
       ms: 8000,
+      alertId: a.id,
       undo: function () { Object.assign(getAlert(id), before); },
       undoMsg: undoMsg
     });
   }
 
+  /* Several toasts can be stacked at once, so the visible text stays "Undo"
+     and the accessible name says which alert it belongs to. Otherwise a screen
+     reader hears several identical "Undo" buttons and no way to tell them
+     apart. */
   function toastHtml(t) {
     return '<div class="toast' + (t.info ? ' is-info' : '') + '" data-tid="' + t.id + '" data-ms="' + t.ms + '">' +
       '<div class="toast-body">' +
         '<span class="msg">' + esc(t.msg) + '</span>' +
-        (t.undo ? '<button class="btn btn-sm" data-action="undo" data-tid="' + t.id + '">Undo</button>' : '') +
+        (t.undo
+          ? '<button class="btn btn-sm" data-action="undo" data-tid="' + t.id + '"' +
+            ' aria-label="Undo decision on alert ' + esc(t.alertId || '') + '">Undo</button>'
+          : '') +
       '</div>' +
       '<div class="toast-timer"><i></i></div>' +
     '</div>';
@@ -788,6 +800,7 @@
       msg: msg,
       undo: opts.undo || null,
       undoMsg: opts.undoMsg || '',
+      alertId: opts.alertId || '',
       info: !!opts.info,
       ms: opts.ms || 8000
     };
@@ -795,10 +808,6 @@
     syncToasts();
     setTimeout(function () { removeToast(t.id); }, t.ms);
     return t.id;
-  }
-
-  function notify(msg, ms) {
-    return pushToast(msg, { ms: ms || 4000, info: true });
   }
 
   function removeToast(id) {
