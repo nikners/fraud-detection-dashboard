@@ -38,6 +38,11 @@
    resolved, and only matters once an alert is Resolved. Records 1004, 1007,
    1008 and 1009 are seeded as already-resolved so that the Reports screen
    shows real, non-zero numbers on first load instead of an empty report.
+
+   `outcome` should always agree with `riskScore` and `reasons`: a low risk
+   alert with reassuring reasons is approved as a false positive, not blocked.
+   1004 is the only seeded block, because it is one of the four high risk
+   drains-the-whole-balance transfers.
    ========================================================================= */
 
 const ALERT_DATA = [
@@ -193,7 +198,10 @@ const ALERT_DATA = [
       'Both accounts have a regular payment history'
     ],
     status: 'Resolved',
-    outcome: 'blocked',
+    /* Was "blocked", which contradicted the low risk score and the reasons
+       above. Nothing about this transfer is suspicious, so the analyst
+       approved it as a false positive. */
+    outcome: 'false_positive',
     escalated: false
   },
   {
