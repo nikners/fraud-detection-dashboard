@@ -26,7 +26,7 @@
   const state = {
     session: null,               // { name, role } or null
     alerts: [],                  // live working copy, cloned from data.js
-    queue: { q: '', status: 'All', type: 'All' },
+    queue: { q: '', status: 'All', type: 'All', escalated: 'All' },
     showNotes: false,            // heuristic notes toggle
     modal: null,                 // confirmation dialog, or null
     toasts: []                   // active toast messages
@@ -119,6 +119,42 @@
     return null;
   }
 
+  /* ---- roles ------------------------------------------------------------
+     Two roles, decided at sign in. An Analyst reviews alerts and can hand
+     tricky ones to a Supervisor, but cannot decide an alert they have already
+     handed over. A Supervisor can decide anything, and has nobody above them,
+     so there is nothing for them to escalate to. */
+
+  function isSupervisor() {
+    return !!state.session && state.session.role === 'Supervisor';
+  }
+
+  function isAnalyst() {
+    return !!state.session && state.session.role === 'Analyst';
+  }
+
+  /* An escalated alert is locked for the Analyst who escalated it (and for any
+     other Analyst) until a Supervisor decides. Resolving it clears the flag,
+     so a resolved alert is never locked. */
+  function actionsLocked(a) {
+    return isAnalyst() && a.escalated === true && a.status !== 'Resolved';
+  }
+
+  /* Escalated alerts that nobody has decided yet. Used for the Supervisor's
+     "waiting for you" line. */
+  function waitingForSupervisor() {
+    return state.alerts.filter(function (a) {
+      return a.escalated === true && a.status !== 'Resolved';
+    });
+  }
+
+  /* Clock time for a live audit entry. Zero padded so the HH:MM strings sort
+     and read consistently with the seeded ones. */
+  function clockNow() {
+    const d = new Date();
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+
   /* Live tallies. Every screen reads from here, so a decision on the case
      screen changes the queue counter and the Reports figures immediately. */
   function counts() {
@@ -163,6 +199,11 @@
 
     /* No hash yet on first load: settle on the login screen. */
     if (!location.hash) { location.hash = '#/login'; return; }
+
+    /* Leaving the screen drops any open dialog. The backdrop stops this
+       happening with the mouse, but the browser Back button can still move
+       pages while a dialog is open, which would strand it on the new screen. */
+    if (state.modal && route.name !== 'case') state.modal = null;
 
     /* Nothing signed in: everything except login bounces back to login. */
     if (route.name !== 'login' && !state.session) { navigate('#/login'); return; }
@@ -340,6 +381,7 @@
     const list = state.alerts.filter(function (a) {
       if (state.queue.status !== 'All' && a.status !== state.queue.status) return false;
       if (state.queue.type !== 'All' && a.type !== state.queue.type) return false;
+      if (state.queue.escalated !== 'All' && a.escalated !== true) return false;
       if (q && String(a.id).toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
@@ -363,14 +405,32 @@
 
     const filtersOn = state.queue.q.trim() !== '' ||
                       state.queue.status !== 'All' ||
-                      state.queue.type !== 'All';
+                      state.queue.type !== 'All' ||
+                      state.queue.escalated !== 'All';
     if (filtersOn) {
       counter += '<p class="counter">Showing <b>' + list.length + ' of ' + c.total +
                 '</b> alerts' +
                 (state.queue.status !== 'All' ? ' &middot; status: ' + esc(state.queue.status) : '') +
                 (state.queue.type !== 'All' ? ' &middot; type: ' + esc(state.queue.type) : '') +
+                (state.queue.escalated !== 'All' ? ' &middot; escalated only' : '') +
                 (state.queue.q.trim() ? ' &middot; search: "' + esc(state.queue.q.trim()) + '"' : '') +
                 '</p>';
+    }
+
+    /* Only a Supervisor has anything waiting on them, so only they see this.
+       The button applies the Escalated filter rather than duplicating it. */
+    if (isSupervisor()) {
+      const waiting = waitingForSupervisor();
+      if (waiting.length) {
+        counter += '<p class="counter supervisor-line">' +
+          '<b>' + waiting.length + (waiting.length === 1 ? ' alert' : ' alerts') +
+          ' escalated</b> and waiting for you' +
+          (state.queue.escalated === 'All'
+            ? ' <button class="btn btn-sm" data-action="show-escalated">Show them</button>'
+            : '') +
+          hTag('H1') +
+        '</p>';
+      }
     }
 
     if (!list.length) {
@@ -441,6 +501,13 @@
           '<label for="queueType">Type</label>' +
           '<select id="queueType">' + sel('type', state.queue.type, ['All'].concat(TYPE_VALUES)) + '</select>' +
         '</div>' +
+        '<div class="field">' +
+          '<label for="queueEscalated">Escalated</label>' +
+          '<select id="queueEscalated">' +
+            '<option value="All"' + (state.queue.escalated === 'All' ? ' selected' : '') + '>All</option>' +
+            '<option value="Escalated"' + (state.queue.escalated === 'Escalated' ? ' selected' : '') + '>Escalated only</option>' +
+          '</select>' +
+        '</div>' +
         '<div class="spacer"></div>' +
         '<button class="btn" data-action="clear-filters">Clear filters' + hTag('H3') + '</button>' +
       '</div>' +
@@ -448,11 +515,27 @@
       '<div id="queue-results">' + queueResultsHtml() + '</div>';
   }
 
-  /* Only the table and the counters are replaced while typing, so the search
+  /* Typing only re-renders the results region, so the search
      box keeps focus and the caret position. */
   function updateQueueResults() {
     const host = document.getElementById('queue-results');
     if (host) host.innerHTML = queueResultsHtml();
+  }
+
+  /* ---- confirmation dialog form -------------------------------------------
+     The reason dropdown and the note field write straight into the open modal
+     record and patch only the two small regions that display them. Re-rendering
+     the dialog on every keystroke would rebuild the textarea and throw away
+     the caret. */
+  function refreshModalSummary() {
+    const m = state.modal;
+    if (!m) return;
+    const summary = document.getElementById('modalSummary');
+    if (!summary) return;
+    summary.innerHTML = m.reason
+      ? 'You are confirming this because: <strong>' + esc(m.reason) + '</strong>' +
+        (m.detailNote ? '<br>Note: ' + esc(m.detailNote) : '')
+      : 'No reason chosen yet. Pick one before you confirm.';
   }
 
   /* ------------------------------------------------------------ 5c. case */
@@ -498,6 +581,27 @@
     PAYMENT: 'A PAYMENT pays a shop or a merchant, not another person, so there is no recipient account to record.'
   };
 
+  /* Audit trail, newest entry first. Entries are stored oldest first, so the
+     copy is reversed for display only. */
+  function logRows(a) {
+    const entries = a.log.slice().reverse();
+    let html = '';
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      html += '<tr>' +
+        '<td class="nowrap mono">' + esc(e.time) + '</td>' +
+        '<td class="nowrap">' + esc(e.who) +
+          (e.role && e.role !== 'system' ? ' <span class="muted small">(' + esc(e.role) + ')</span>' : '') +
+        '</td>' +
+        '<td>' + esc(e.action) + '</td>' +
+        '<td>' + (e.reason ? esc(e.reason) : '<span class="muted">&mdash;</span>') +
+          (e.note ? '<br><span class="muted small">' + esc(e.note) + '</span>' : '') +
+        '</td>' +
+      '</tr>';
+    }
+    return html;
+  }
+
   function caseHtml(id) {
     const a = getAlert(id);
 
@@ -513,6 +617,9 @@
 
     const level = riskLevel(a.riskScore);
     const hasRecipient = a.type === 'TRANSFER';
+    const sup = isSupervisor();
+    const locked = actionsLocked(a);
+    const dis = locked ? ' disabled aria-disabled="true"' : '';
 
     return '' +
       '<a class="backlink" href="#/queue">&larr; Back to the queue' + hTag('H3') + '</a>' +
@@ -573,6 +680,19 @@
               '</dl>' +
             '</div>' +
           '</section>' +
+
+          '<section class="panel">' +
+            '<h2>Activity log' + hTag('H1') + '</h2>' +
+            '<div class="panel-body" style="padding:0">' +
+              '<table class="grid">' +
+                '<caption style="padding:8px 10px 0">Everything that has happened to this alert, newest first. ' +
+                  'Kept in memory only, so it resets when you reload.</caption>' +
+                '<thead><tr><th scope="col">Time</th><th scope="col">Who</th>' +
+                '<th scope="col">Action</th><th scope="col">Reason</th></tr></thead>' +
+                '<tbody>' + logRows(a) + '</tbody>' +
+              '</table>' +
+            '</div>' +
+          '</section>' +
         '</div>' +
 
         /* ---- right column ---- */
@@ -588,11 +708,15 @@
                 '<li><b>Escalate</b>Hands the alert to a Supervisor to decide. Blocks nothing. ' +
                   'Asks you to confirm first.' + hTag('H5') + '</li>' +
               '</ul>' +
-              '<button class="btn btn-block" data-action="approve" data-id="' + esc(a.id) + '">Approve</button>' +
-              '<button class="btn btn-block" data-action="open-block" data-id="' + esc(a.id) + '">Block account</button>' +
-              '<button class="btn btn-block" data-action="open-escalate" data-id="' + esc(a.id) + '">Escalate</button>' +
-              '<p class="small muted" style="margin:10px 0 0">Decisions show a message at the bottom of the screen, ' +
-                'with an Undo button for 8 seconds.</p>' +
+              '<button class="btn btn-block" data-action="approve" data-id="' + esc(a.id) + '"' + dis + '>Approve</button>' +
+              '<button class="btn btn-block" data-action="open-block" data-id="' + esc(a.id) + '"' + dis + '>Block account</button>' +
+              (sup ? '' :
+                '<button class="btn btn-block" data-action="open-escalate" data-id="' + esc(a.id) + '"' + dis + '>Escalate</button>') +
+              (locked ?
+                '<p class="lock-note" role="status">Escalated to a Supervisor. ' +
+                  'Waiting for their decision.' + hTag('H1') + '</p>' :
+                '<p class="small muted" style="margin:10px 0 0">Decisions show a message at the bottom of the screen, ' +
+                'with an Undo button for 8 seconds.</p>') +
             '</div>' +
           '</section>' +
 
@@ -674,6 +798,27 @@
   function modalHtml() {
     if (!state.modal) return '';
     const m = state.modal;
+
+    /* Reason and note live on the modal record rather than in local variables,
+       so they survive a re-render and can be read on confirm.
+       `m.note` is the dialog's own reassurance line about Undo. The user's
+       free text is `m.detailNote`, so the two cannot collide. */
+    const reasons = m.reasons || [];
+    const picked = m.reason || '';
+    const note = m.detailNote || '';
+
+    let options = '<option value="">Choose a reason</option>';
+    for (let i = 0; i < reasons.length; i++) {
+      options += '<option value="' + esc(reasons[i]) + '"' +
+                 (reasons[i] === picked ? ' selected' : '') + '>' +
+                 esc(reasons[i]) + '</option>';
+    }
+
+    const summary = picked
+      ? 'You are confirming this because: <strong>' + esc(picked) + '</strong>' +
+        (note ? '<br>Note: ' + esc(note) : '')
+      : 'No reason chosen yet. Pick one before you confirm.';
+
     return '' +
       '<div class="modal-backdrop">' +
         '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">' +
@@ -681,6 +826,22 @@
           '<div class="modal-body">' +
             '<p>' + esc(m.intro) + '</p>' +
             '<ul>' + m.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+
+            '<div class="field" data-field="modalReason">' +
+              '<label for="modalReason">Reason' + hTag('H5') + '</label>' +
+              '<select id="modalReason">' + options + '</select>' +
+              '<p class="field-error" id="err-modalReason" role="alert"></p>' +
+            '</div>' +
+
+            '<div class="field" data-field="modalNote">' +
+              '<label for="modalNote">Note <span class="muted">(optional)</span></label>' +
+              '<textarea id="modalNote" rows="2" maxlength="' + NOTE_MAX + '" ' +
+                'placeholder="Anything the Supervisor should know">' + esc(note) + '</textarea>' +
+              '<span class="hint"><span id="noteCount">' + note.length + ' / ' + NOTE_MAX + '</span>' +
+                ' characters' + hTag('H5') + '</span>' +
+            '</div>' +
+
+            '<p class="modal-note" id="modalSummary">' + summary + '</p>' +
             '<p class="modal-note">' + esc(m.note) + '</p>' +
           '</div>' +
           '<div class="modal-actions">' +
@@ -721,7 +882,8 @@
         ],
         note: 'You can undo this for 8 seconds after you confirm.',
         confirmLabel: 'Yes, block account',
-        onConfirm: function () { applyAction('block', id); }
+        reasons: BLOCK_REASONS,
+        onConfirm: function (detail) { applyAction('block', id, detail); }
       });
     } else {
       openModal({
@@ -735,35 +897,52 @@
         ],
         note: 'You can undo this for 8 seconds after you confirm.',
         confirmLabel: 'Yes, escalate',
-        onConfirm: function () { applyAction('escalate', id); }
+        reasons: ESCALATE_REASONS,
+        onConfirm: function (detail) { applyAction('escalate', id, detail); }
       });
     }
   }
 
   /* The single place an alert's data changes. Takes a snapshot first so Undo
-     can put the record back exactly as it was, including outcome and flags. */
-  function applyAction(kind, id) {
+     can put the record back exactly as it was, including outcome, flags and
+     the audit log, because the snapshot is a deep clone. */
+  function applyAction(kind, id, detail) {
     const a = getAlert(id);
     if (!a) return;
 
+    detail = detail || {};
     const before = JSON.parse(JSON.stringify(a));
-    let msg;
+    let msg, actionLabel;
 
     if (kind === 'approve') {
       a.status = 'Resolved';
       a.outcome = 'false_positive';
       a.escalated = false;
       msg = 'Alert ' + a.id + ' approved as a false positive.';
+      actionLabel = 'Approved as false positive';
     } else if (kind === 'block') {
       a.status = 'Resolved';
       a.outcome = 'blocked';
       a.escalated = false;
       msg = 'Alert ' + a.id + ' blocked.';
+      actionLabel = 'Blocked';
     } else {
       a.status = 'In review';
       a.escalated = true;
       msg = 'Alert ' + a.id + ' escalated to a Supervisor.';
+      actionLabel = 'Escalated';
     }
+
+    /* Appended after the snapshot, so Undo removes this entry along with the
+       rest of the change. */
+    a.log.push({
+      time: clockNow(),
+      who: state.session ? state.session.name : 'unknown',
+      role: state.session ? state.session.role : 'unknown',
+      action: actionLabel,
+      reason: detail.reason || null,
+      note: detail.note || null
+    });
 
     const undoMsg = 'Undo done. Alert ' + a.id + ' is back to ' + before.status + '.';
 
@@ -905,7 +1084,12 @@
         return;
 
       case 'clear-filters':
-        state.queue = { q: '', status: 'All', type: 'All' };
+        state.queue = { q: '', status: 'All', type: 'All', escalated: 'All' };
+        render();
+        return;
+
+      case 'show-escalated':
+        state.queue.escalated = 'Escalated';
         render();
         return;
 
@@ -917,14 +1101,21 @@
         return;
 
       case 'approve':
+        /* Belt and braces. The buttons are already disabled for a locked
+           alert, but the click handler refuses too, so the rule holds however
+           the click arrives. */
+        if (id && actionsLocked(getAlert(id))) return;
         applyAction('approve', id);
         return;
 
       case 'open-block':
+        if (id && actionsLocked(getAlert(id))) return;
         openConfirm('block', id);
         return;
 
       case 'open-escalate':
+        if (id && actionsLocked(getAlert(id))) return;
+        if (isSupervisor()) return;             // nobody above a Supervisor
         openConfirm('escalate', id);
         return;
 
@@ -933,9 +1124,32 @@
         return;
 
       case 'modal-confirm': {
-        const fn = state.modal && state.modal.onConfirm;
+        const m = state.modal;
+        if (!m) return;
+        const reason = m.reason || '';
+        const note = m.detailNote || '';
+
+        /* A reason is required. Refusing here rather than in openConfirm means
+           the dialog simply stays open, so the analyst keeps their place and
+           the focus is not thrown back to the page behind. The error is
+           written straight into the dialog instead of re-rendering it, which
+           would also rebuild the select and lose focus. */
+        if (!reason) {
+          const field = document.querySelector('[data-field="modalReason"]');
+          const err = document.getElementById('err-modalReason');
+          const select = document.getElementById('modalReason');
+          if (field) field.classList.add('has-error');
+          if (err) err.innerHTML = esc('Error: choose a reason before confirming.') + hTag('H9');
+          if (select) {
+            select.setAttribute('aria-invalid', 'true');
+            select.focus();
+          }
+          return;
+        }
+
+        const fn = m.onConfirm;
         state.modal = null;
-        if (fn) fn();
+        if (fn) fn({ reason: reason, note: note });
         return;
       }
 
@@ -957,15 +1171,43 @@
     if (e.target.id === 'queueSearch') {
       state.queue.q = e.target.value;
       updateQueueResults();
+      return;
+    }
+    /* The note field updates its counter and the summary in place. The dialog
+       is deliberately not re-rendered, which would replace the textarea and
+       throw the caret back to the start on every keystroke. */
+    if (e.target.id === 'modalNote' && state.modal) {
+      state.modal.detailNote = e.target.value;
+      const counter = document.getElementById('noteCount');
+      if (counter) counter.textContent = e.target.value.length + ' / ' + NOTE_MAX;
+      refreshModalSummary();
     }
   });
 
   document.addEventListener('change', function (e) {
+    if (e.target.id === 'modalReason' && state.modal) {
+      state.modal.reason = e.target.value;
+      /* Picking a reason clears the error, so the analyst is not told off
+         again for something they have just fixed. */
+      if (e.target.value) {
+        const field = document.querySelector('[data-field="modalReason"]');
+        const err = document.getElementById('err-modalReason');
+        if (field) field.classList.remove('has-error');
+        if (err) err.textContent = '';
+        e.target.removeAttribute('aria-invalid');
+      }
+      refreshModalSummary();
+      return;
+    }
+
     if (e.target.id === 'queueStatus') {
       state.queue.status = e.target.value;
       updateQueueResults();
     } else if (e.target.id === 'queueType') {
       state.queue.type = e.target.value;
+      updateQueueResults();
+    } else if (e.target.id === 'queueEscalated') {
+      state.queue.escalated = e.target.value;
       updateQueueResults();
     } else if (e.target.id === 'notesToggle') {
       state.showNotes = e.target.checked;
@@ -1004,6 +1246,12 @@
     /* data.js is the pristine copy; the working copy is a deep clone so that
        Undo never mutates the original records. */
     state.alerts = JSON.parse(JSON.stringify(ALERT_DATA));
+
+    /* Every alert carries an audit trail. Normalising here means the action
+       code and the panel can both assume the array exists. */
+    state.alerts.forEach(function (a) {
+      if (!a.log) a.log = [];
+    });
 
     window.addEventListener('hashchange', router);
     router();

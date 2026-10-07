@@ -41,11 +41,14 @@ Suggested values: `analyst1` / `password` / Analyst.
 | Sign in, look at the queue | 10 alerts sorted by risk score, highest first |
 | Type `100` in the search box | All ten alerts match; the caret stays put |
 | Clear filters, then click row **1001** | Case screen opens with reasons and balances |
-| Press **Block account** | Confirmation dialog spelling out exactly what will happen |
+| Press **Block account** | Confirmation dialog listing what will happen, plus a required Reason |
+| Confirm without a reason | The dialog stays open with an inline error; nothing changes |
 | Confirm it | Status turns Resolved, a toast appears with an 8 second **Undo** |
-| Press **Undo** quickly | The alert genuinely reverts to New and you get a confirmation |
+| Press **Undo** quickly | The alert genuinely reverts to New, log entry included, and you get a confirmation |
 | Wait 8 seconds instead | The toast disappears on its own, counting down as it goes |
-| Press **Escalate** | Stays In review, gains an "escalated" marker, still counted as open |
+| Press **Escalate** | Stays In review, gains an "escalated" marker, and the actions lock for an Analyst |
+| Sign in as **Supervisor** | Escalate is gone, escalated alerts are actionable, and "waiting for you" appears on the queue |
+| Scroll to **Activity log** | Every action recorded with time, who, role, action and reason |
 | Go to **Reports** | Figures already non-zero on first load, and they update as you act |
 | Turn on **Show heuristic notes** | Numbered tags appear and a legend explains all ten |
 
@@ -69,8 +72,10 @@ A table sorted by risk score, highest first:
 **Alert ID · Type · Amount · Risk score · Risk level · Top reason · Status**
 
 - Search box matching on alert ID (partial matches work, so `10` finds all ten)
-- Filters for **Status** (New / In review / Resolved) and **Type**
+- Filters for **Status** (New / In review / Resolved), **Type**, and
+  **Escalated** (All / Escalated only)
 - A live counter: *"10 alerts, 4 new, 2 in review, 4 resolved."*
+- A line for Supervisors only when escalated alerts are waiting on them
 - An empty state with a *Clear filters* button when nothing matches
 - Clicking a row opens the case; the alert ID is also a real link
 
@@ -85,27 +90,69 @@ Status values are exactly **New**, **In review**, **Resolved**.
 - **Transaction details**: type, amount, sender balance before/after,
   recipient balance before/after
 - **Recent history** — 3 sample rows of past account activity
-- Actions: **Approve**, **Block account**, **Escalate**
+- **Activity log** — the audit trail, newest first, with an H1 tag
+- Actions: **Approve**, **Block account**, **Escalate** — which of these are
+  available depends on your role (see below)
 
-### 4. Confirmation dialog
+### 4. Roles
+
+The role picked at sign in decides what you can do.
+
+**Analyst**
+
+- Can Approve, Block or Escalate any alert.
+- Once an alert is escalated it is locked for Analysts. All three actions are
+  disabled and the case says *"Escalated to a Supervisor. Waiting for their
+  decision."* The 8 second Undo still works, so an escalation can be taken
+  back straight away.
+- Does not see the "waiting for you" line on the queue.
+
+**Supervisor**
+
+- Can Approve or Block **any** alert, including escalated ones.
+- The **Escalate** button is not shown, because there is nobody above a
+  Supervisor to hand an alert to.
+- Sees a line above the queue such as *"2 alerts escalated and waiting for
+  you"*, with a button that applies the Escalated filter.
+
+Alert 1002 is seeded as escalated, so a Supervisor has something waiting on
+them the first time they sign in. An Analyst signing in first finds that one
+alert already locked.
+
+### 5. Confirmation dialog
 
 Shown for **Block account** and **Escalate**. It lists exactly what will happen
 before you commit, then offers Cancel / Confirm. `Escape` cancels.
 
+The dialog also has a **required Reason** dropdown and an **optional Note**
+(max 140 characters, with a counter):
+
+- Block reasons: Confirmed fraud / Suspected fraud, customer unreachable /
+  Account takeover suspected / Other
+- Escalate reasons: Needs a second opinion / Amount above my approval limit /
+  Unsure about the pattern / Other
+
+Confirm does nothing until a reason is chosen. The dialog stays open and shows
+an inline *"Error: choose a reason before confirming"* under the dropdown, with
+focus left in the dropdown. The chosen reason and note are echoed in the
+dialog's summary line and stored on the alert's activity log entry.
+
 Confirming shows a toast that stays for **8 seconds** with an **Undo** button
 and a visible countdown bar. Pressing Undo genuinely reverts the alert,
-including its outcome and escalation flags.
+including its outcome, escalation flags and the log entry it just created.
 
 | Action | Asks first? | Result | Toast |
 |---|---|---|---|
 | Approve | No | Status `Resolved`, marked as a false positive | `Alert 1004 approved as a false positive.` |
-| Block account | Yes | Status `Resolved`, marked as blocked | `Alert 1004 blocked.` |
-| Escalate | Yes | Status stays `In review`, gains an `escalated` marker | `Alert 1004 escalated to a Supervisor.` |
+| Block account | Yes, plus a reason | Status `Resolved`, marked as blocked | `Alert 1004 blocked.` |
+| Escalate | Yes, plus a reason | Status stays `In review`, gains an `escalated` marker | `Alert 1004 escalated to a Supervisor.` |
 
 Approve is deliberately instant and unconfirmed because it blocks nothing and
-is fully reversible.
+is fully reversible. Every action writes a line to the alert's activity log
+with the clock time, the signed-in username and role, the action, and the
+reason and note if any.
 
-### 5. Reports — `#/reports`
+### 6. Reports — `#/reports`
 
 - Summary cards: total alerts, resolved, still open, % approved as false positive
 - A bar chart of alerts by status, built from plain divs
@@ -126,15 +173,15 @@ The tags follow Nielsen's ten usability heuristics (1994):
 
 | # | Heuristic | Where it shows up in FlagWise |
 |---|---|---|
-| H1 | Visibility of system status | Status badges, the alert counter, toast messages, the Reports figures and the 8 second countdown bar |
+| H1 | Visibility of system status | Status badges, the alert counter, toast messages, the Reports figures, the 8 second countdown bar, the Supervisor's "waiting for you" line, and the per-alert **Activity log** |
 | H2 | Match between the system and the real world | "Sign in", "Approve", "Why was this flagged?"; no internal codes or jargon |
-| H3 | User control and freedom | Back link, Cancel in the dialog, Sign out, and Undo on every decision |
+| H3 | User control and freedom | Back link, Cancel in the dialog, Sign out, and the 8 second **Undo** on every decision |
 | H4 | Consistency and standards | The same top navigation, breadcrumb, panel headings and button styles on all four post-login screens |
-| H5 | Error prevention | Block and Escalate confirm the consequences first; empty login fields are caught before submitting |
-| H6 | Recognition over recall | Search box, Status and Type filters, breadcrumbs, and reasons written out in full |
-| H7 | Flexibility and efficiency of use | Narrow by ID, Status and Type together; rows open the case directly |
+| H5 | Error prevention | Block and Escalate confirm the consequences first and require a **Reason**; empty login fields are caught before submitting |
+| H6 | Recognition over recall | Search box, Status, Type and Escalated filters, breadcrumbs, and reasons written out in full |
+| H7 | Flexibility and efficiency of use | Narrow by ID, Status, Type and Escalated together; rows open the case directly |
 | H8 | Aesthetic and minimalist design | Grayscale interface, one accent colour, no decoration competing with the data |
-| H9 | Help users recover from errors | Inline field errors name the problem; Undo restores a decision and confirms it |
+| H9 | Help users recover from errors | Inline field errors name the problem — including *"Error: choose a reason before confirming"* in the dialog — and Undo restores a decision, its flags and its log entry, then confirms it |
 | H10 | Help and documentation | The heuristic notes legend explains every tag on the page |
 
 ---
@@ -228,3 +275,20 @@ changes them, and Undo puts them back.
     analyst needs to read after acting. The Undo button keeps the visible text
     "Undo" and adds an `aria-label` naming the alert, because several toasts
     can be on screen at once.
+18. **The activity log is in memory only.** It is seeded with fixed times so it
+    looks the same on every load, and new entries use the real clock. Nothing is
+    written to storage, so the whole trail — including every seeded entry —
+    resets when the page reloads. There is no server to keep it.
+19. **Seed usernames are fixed strings.** `analyst1` escalates 1002 and
+    `supervisor1` decides the four resolved alerts. They are not accounts; any
+    non-empty username signs you in and actions are logged under whatever you
+    typed.
+20. **Both roles see the Escalated filter**, but only a Supervisor sees the
+    "waiting for you" line, since only they have anything waiting on them.
+21. **An escalated alert stays locked for Analysts** until a Supervisor decides
+    it or the 8 second Undo is used. That is deliberate dual control, but it
+    does mean a single-role walkthrough can strand an escalated alert.
+22. **Supervisor Approve is instant.** The roles section says a Supervisor can
+    "use the same confirm flow", but Approve deliberately keeps no dialog at
+    all, for both roles. Only Block and Escalate have the dialog and the
+    required reason.

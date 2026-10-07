@@ -263,6 +263,17 @@ a { color: var(--ink); }
 .btn-solid  { background: var(--ink); color: var(--paper); }
 .btn-solid:hover { background: var(--ink-2); border-color: var(--ink-2); }
 .btn-sm     { padding: 3px 8px; font-size: 12px; }
+/* Locked for this role. Greyed and dimmed rather than accent-coloured, since
+   the one accent is reserved for risk. */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  color: var(--ink-3);
+  border-color: var(--line-3);
+  background: var(--paper-2);
+  cursor: not-allowed;
+}
+.btn:disabled:hover,
+.btn[aria-disabled="true"]:hover { background: var(--paper-2); }
 /* Full-width buttons stack on their own line. They must be excluded from the
    inline sibling gap below, or the 6px left margin pushes them out past the
    panel padding as well as down the line. */
@@ -281,7 +292,8 @@ a { color: var(--ink); }
 .field input[type="text"],
 .field input[type="password"],
 .field input[type="search"],
-.field select {
+.field select,
+.field textarea {
   font: inherit;
   color: var(--ink);
   background: var(--paper);
@@ -290,6 +302,7 @@ a { color: var(--ink); }
   width: 100%;
   max-width: 320px;
 }
+.field textarea { resize: vertical; min-height: 44px; }
 .field .hint { display: block; font-size: 12px; color: var(--ink-3); margin-top: 3px; }
 
 /* Errors are grayscale: a thickened border plus an explicit "Error:" prefix,
@@ -572,6 +585,9 @@ tr.clickable { cursor: pointer; }
 .modal-body { padding: 14px 12px; }
 .modal-body ul { margin-top: 0; }
 .modal-body li { font-size: 13px; }
+.modal-body .field { margin-top: 12px; margin-bottom: 0; }
+.modal-body .field textarea { max-width: 100%; }
+.modal-body .hint { text-align: right; }
 .modal-note {
   border: 1px dashed var(--line-2);
   padding: 6px 8px;
@@ -653,6 +669,27 @@ tr.clickable { cursor: pointer; }
   margin: 0 0 10px;
 }
 .counter b { font-weight: 700; }
+
+/* Shown to a Supervisor above the queue when alerts are waiting on them. */
+.supervisor-line {
+  border-style: solid;
+  border-width: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.supervisor-line .btn { margin-left: 0; }
+
+/* Shown under the case actions when an Analyst cannot act on an alert. */
+.lock-note {
+  margin: 10px 0 0;
+  border: 1px dashed var(--line-2);
+  background: var(--paper-2);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
 
 .empty-state {
   border: 1px dashed var(--line-2);

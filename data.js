@@ -23,6 +23,21 @@
    status         string   New | In review | Resolved
    outcome        string   null | "blocked" | "false_positive"
    escalated      boolean  true once the alert has been passed to a Supervisor
+   log            array    audit trail, oldest entry first
+
+   Log entry shape
+   --------------
+   time           string   clock time as HH:MM
+   who            string   username, or "scoring system" for a seeded alert
+   role           string   Analyst | Supervisor | system
+   action         string   what happened, e.g. "Blocked"
+   reason         string   chosen from the confirmation dialog, or null
+   note           string   free text typed alongside the reason, or null
+
+   Seeded entries use fixed times so the trail looks plausible and stays the
+   same on every reload. Entries added by clicking Approve, Block or Escalate
+   use the real clock and the signed-in username. The whole trail lives in
+   memory only and resets when the page reloads.
 
    Note on recipient balances
    --------------------------
@@ -62,7 +77,11 @@ const ALERT_DATA = [
     ],
     status: 'New',
     outcome: null,
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '09:14', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null }
+    ]
   },
   {
     id: '1002',
@@ -80,7 +99,16 @@ const ALERT_DATA = [
     ],
     status: 'In review',
     outcome: null,
-    escalated: false
+    /* Seeded escalated so a Supervisor has something waiting for them the
+       first time they sign in. Status stays In review, so none of the Reports
+       figures move. */
+    escalated: true,
+    log: [
+      { time: '09:31', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null },
+      { time: '09:52', who: 'analyst1', role: 'Analyst',
+        action: 'Escalated', reason: 'Needs a second opinion', note: null }
+    ]
   },
   {
     id: '1003',
@@ -98,7 +126,11 @@ const ALERT_DATA = [
     ],
     status: 'New',
     outcome: null,
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '09:47', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null }
+    ]
   },
   {
     id: '1004',
@@ -115,7 +147,13 @@ const ALERT_DATA = [
     ],
     status: 'Resolved',
     outcome: 'blocked',
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '08:58', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null },
+      { time: '10:05', who: 'supervisor1', role: 'Supervisor',
+        action: 'Blocked', reason: 'Confirmed fraud', note: null }
+    ]
   },
   {
     id: '1005',
@@ -132,7 +170,11 @@ const ALERT_DATA = [
     ],
     status: 'New',
     outcome: null,
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '10:12', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null }
+    ]
   },
   {
     id: '1006',
@@ -149,7 +191,11 @@ const ALERT_DATA = [
     ],
     status: 'In review',
     outcome: null,
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '10:20', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null }
+    ]
   },
   {
     id: '1007',
@@ -166,7 +212,13 @@ const ALERT_DATA = [
     ],
     status: 'Resolved',
     outcome: 'false_positive',
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '09:05', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null },
+      { time: '11:02', who: 'supervisor1', role: 'Supervisor',
+        action: 'Approved as false positive', reason: null, note: null }
+    ]
   },
   {
     id: '1008',
@@ -182,7 +234,13 @@ const ALERT_DATA = [
     ],
     status: 'Resolved',
     outcome: 'false_positive',
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '09:38', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null },
+      { time: '11:04', who: 'supervisor1', role: 'Supervisor',
+        action: 'Approved as false positive', reason: null, note: null }
+    ]
   },
   {
     id: '1009',
@@ -202,7 +260,13 @@ const ALERT_DATA = [
        above. Nothing about this transfer is suspicious, so the analyst
        approved it as a false positive. */
     outcome: 'false_positive',
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '08:41', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null },
+      { time: '11:06', who: 'supervisor1', role: 'Supervisor',
+        action: 'Approved as false positive', reason: null, note: null }
+    ]
   },
   {
     id: '1010',
@@ -218,7 +282,11 @@ const ALERT_DATA = [
     ],
     status: 'New',
     outcome: null,
-    escalated: false
+    escalated: false,
+    log: [
+      { time: '10:33', who: 'scoring system', role: 'system',
+        action: 'Alert raised by scoring system', reason: null, note: null }
+    ]
   }
 ];
 
@@ -227,3 +295,23 @@ const ALERT_DATA = [
 const STATUS_VALUES = ['New', 'In review', 'Resolved'];
 const TYPE_VALUES = ['TRANSFER', 'CASH_OUT', 'PAYMENT'];
 const ROLES = ['Analyst', 'Supervisor'];
+
+/* Reasons offered in the confirmation dialog. Blocking and escalating are
+   different decisions, so they get different lists. "Other" is the last
+   option on both; the free-text note is where the detail goes. */
+const BLOCK_REASONS = [
+  'Confirmed fraud',
+  'Suspected fraud, customer unreachable',
+  'Account takeover suspected',
+  'Other'
+];
+
+const ESCALATE_REASONS = [
+  'Needs a second opinion',
+  'Amount above my approval limit',
+  'Unsure about the pattern',
+  'Other'
+];
+
+/* Longest note the dialog accepts. The counter in the dialog uses this too. */
+const NOTE_MAX = 140;
