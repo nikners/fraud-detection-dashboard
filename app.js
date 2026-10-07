@@ -140,6 +140,13 @@
     return isAnalyst() && a.escalated === true && a.status !== 'Resolved';
   }
 
+  /* Either state stops a decision being made: an Analyst cannot touch an alert
+     they handed over, and nobody re-decides a resolved one. Kept next to
+     actionsLocked so the two rules stay in step. */
+  function actionsDisabled(a) {
+    return actionsLocked(a) || a.status === 'Resolved';
+  }
+
   /* Escalated alerts that nobody has decided yet. Used for the Supervisor's
      "waiting for you" line. */
   function waitingForSupervisor() {
@@ -619,7 +626,11 @@
     const hasRecipient = a.type === 'TRANSFER';
     const sup = isSupervisor();
     const locked = actionsLocked(a);
-    const dis = locked ? ' disabled aria-disabled="true"' : '';
+    /* A resolved alert is finished: its decision is part of the record and is
+       not reopened from here. Both states disable the same three buttons, so
+       they share one flag and only the explanatory line below differs. */
+    const resolved = a.status === 'Resolved';
+    const dis = (locked || resolved) ? ' disabled aria-disabled="true"' : '';
 
     return '' +
       '<a class="backlink" href="#/queue">&larr; Back to the queue' + hTag('H3') + '</a>' +
@@ -712,7 +723,10 @@
               '<button class="btn btn-block" data-action="open-block" data-id="' + esc(a.id) + '"' + dis + '>Block account</button>' +
               (sup ? '' :
                 '<button class="btn btn-block" data-action="open-escalate" data-id="' + esc(a.id) + '"' + dis + '>Escalate</button>') +
-              (locked ?
+              (resolved ?
+                '<p class="lock-note" role="status">This alert is resolved. ' +
+                  'Decisions can\u2019t be changed in this prototype.' + hTag('H1') + '</p>' :
+                locked ?
                 '<p class="lock-note" role="status">Escalated to a Supervisor. ' +
                   'Waiting for their decision.' + hTag('H1') + '</p>' :
                 '<p class="small muted" style="margin:10px 0 0">Decisions show a message at the bottom of the screen, ' +
@@ -1101,20 +1115,20 @@
         return;
 
       case 'approve':
-        /* Belt and braces. The buttons are already disabled for a locked
-           alert, but the click handler refuses too, so the rule holds however
-           the click arrives. */
-        if (id && actionsLocked(getAlert(id))) return;
+        /* Belt and braces. The buttons are already disabled for a locked or
+           resolved alert, but the click handler refuses too, so the rule holds
+           however the click arrives. */
+        if (id && actionsDisabled(getAlert(id))) return;
         applyAction('approve', id);
         return;
 
       case 'open-block':
-        if (id && actionsLocked(getAlert(id))) return;
+        if (id && actionsDisabled(getAlert(id))) return;
         openConfirm('block', id);
         return;
 
       case 'open-escalate':
-        if (id && actionsLocked(getAlert(id))) return;
+        if (id && actionsDisabled(getAlert(id))) return;
         if (isSupervisor()) return;             // nobody above a Supervisor
         openConfirm('escalate', id);
         return;
