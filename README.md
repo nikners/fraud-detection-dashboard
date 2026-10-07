@@ -4,13 +4,9 @@ A clickable wireframe of a fraud analyst dashboard. It is deliberately
 unfinished-looking: grey outlines, square corners, system fonts and outlined
 boxes in place of real imagery and charts.
 
-Note that the interface itself never announces that it is a wireframe — there
-is no "prototype" banner, no logo placeholder and no disclaimer on screen, so
-screenshots read as a working dashboard. This file and the comments at the top
-of `app.js`, `styles.css` and `data.js` are where it is declared.
-
-Risk scores are hardcoded. There is no backend, no database, no machine
-learning model and no real authentication.
+This is a low-fidelity prototype. Risk scores are hardcoded and the data is
+synthetic. There is no backend, no database, no machine learning model and no
+real authentication.
 
 ---
 
@@ -35,7 +31,7 @@ FraudDetection/
 Type **any** username and **any** password, pick a role, and press *Sign in*.
 Leaving a field empty shows an inline error instead of signing you in.
 
-Suggested values: `n.muhamadazeem` / `hunter2` / Analyst.
+Suggested values: `analyst1` / `password` / Analyst.
 
 ### Things worth trying
 
@@ -115,8 +111,8 @@ is fully reversible.
 - A bar chart of alerts by status, built from plain divs
 - Everything recomputed live, so acting on an alert changes the figures
 
-With the sample data as shipped: **10 total, 4 resolved, 6 still open, 20%
-marked as false positive**.
+With the sample data as shipped: **10 total, 4 resolved, 6 still open, 30%
+marked as false positive (3 of 10)**.
 
 ---
 
@@ -160,7 +156,7 @@ accounts or transactions. Fields: `id`, `type`, `amount`, `oldbalanceOrg`,
 | 1006 | CASH_OUT | $610.10 | $1,500.00 → $889.90 | $0.00 → $0.00 | 57 | MEDIUM | In review | — |
 | 1007 | PAYMENT | $89.99 | $640.25 → $550.26 | $0.00 → $0.00 | 46 | MEDIUM | Resolved | false positive |
 | 1008 | PAYMENT | $45.20 | $300.15 → $254.95 | $0.00 → $0.00 | 33 | LOW | Resolved | false positive |
-| 1009 | TRANSFER | $120.00 | $900.00 → $780.00 | $500.00 → $620.00 | 22 | LOW | Resolved | blocked |
+| 1009 | TRANSFER | $120.00 | $900.00 → $780.00 | $500.00 → $620.00 | 22 | LOW | Resolved | false positive |
 | 1010 | CASH_OUT | $60.00 | $250.00 → $190.00 | $0.00 → $0.00 | 12 | LOW | New | — |
 
 The four high-risk records all share the same pattern: the sender's balance
@@ -216,18 +212,19 @@ changes them, and Undo puts them back.
 14. **Keyboard support was added on top of the original requirements**: queue
     rows open with `Enter`/`Space`, `Escape` cancels the dialog, and focus is
     kept on the heuristic-notes toggle across re-renders.
-15. **The UI deliberately does not describe itself as a prototype.** The
-    banner, the `[ logo ]` box, the `wireframe` badge, the browser-tab suffix
-    and six explanatory sentences about "this prototype" were all removed so
-    the screenshots read as a real dashboard. The wireframe framing is kept in
-    this README and in the source comments instead. The visual style is
-    unchanged — still grayscale, square corners, thin borders.
-16. **The logo placeholder was deleted, not just its text.** An empty dashed
-    rectangle reads as a broken image, so the brand is now the `FlagWise`
-    wordmark on its own and the unused `.logo-ph` / `.wire-note` /
-    `.login-strip` CSS was removed with it.
-17. **The H9 tag moved onto the inline login error.** It used to sit beside a
+15. **The H9 tag moved onto the inline login error.** It used to sit beside a
     sentence *describing* the error; it now sits beside the error itself, so
     "help users recover from errors" is evidenced by the artefact rather than
     the explanation. The legend is also shown on the login screen when the
     notes toggle is left on, so tags there are never unexplained.
+16. **Only alert 1004 is seeded as blocked.** The other three seeded outcomes
+    are false positives, because a low risk score with reassuring reasons
+    cannot coherently justify a block. Alert 1009 was originally seeded as
+    blocked and was changed, since its reasons read "amount is normal for this
+    account".
+17. **Toasts sit bottom left, not bottom right.** The queue's Status column is
+    the rightmost column and the case screen's action buttons sit in the
+    right-hand column, so a bottom-right stack covered the exact things an
+    analyst needs to read after acting. The Undo button keeps the visible text
+    "Undo" and adds an `aria-label` naming the alert, because several toasts
+    can be on screen at once.
